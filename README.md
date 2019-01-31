@@ -1,0 +1,1 @@
+I was stuck by the question of, given two bytes interpreted as (x, y) coordinates, what would it look like if you bitwse-OR-ed in `0b1111` into each byte. I couldn't easily do the calculations to visualize in my head so I decided to make a computer do that. Probably I will add a way to select different operations as well.
