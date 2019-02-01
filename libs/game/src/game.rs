@@ -80,6 +80,7 @@ fn checkerboard_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
     use rendering::{PALETTE, SCREEN_WIDTH};
     let mut index = state.offset % PALETTE.len();
     let mut last_row = 0;
+    let mut counter = 0;
     for (i, pixel) in framebuffer.buffer.iter_mut().enumerate() {
         let row = i / SCREEN_WIDTH;
         if last_row != row {
@@ -87,7 +88,12 @@ fn checkerboard_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
         }
         last_row = row;
         *pixel = PALETTE[index];
-        index = (index + 1) % PALETTE.len();
+
+        counter += 1;
+        if counter >= PALETTE.len() {
+            counter = 0;
+            index = (index + 1) % PALETTE.len();
+        }
     }
 }
 
