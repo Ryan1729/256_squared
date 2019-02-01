@@ -2,11 +2,17 @@ use features::{GLOBAL_ERROR_LOGGER, GLOBAL_LOGGER};
 use platform_types::{Button, Input, Speaker, State, StateParams, SFX};
 use rendering::{Framebuffer, BLACK, BLUE, GREEN, RED, WHITE};
 
-pub struct GameState {}
+pub struct GameState {
+    pub offset: usize,
+    pub is_checkerboard: bool,
+}
 
 impl GameState {
     pub fn new(_seed: [u8; 16]) -> GameState {
-        GameState {}
+        GameState {
+            offset: 0,
+            is_checkerboard: false,
+        }
     }
 }
 
@@ -70,10 +76,40 @@ impl State for EntireState {
     }
 }
 
+fn checkerboard_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
+    use rendering::{PALETTE, SCREEN_WIDTH};
+    let mut index = state.offset % PALETTE.len();
+    let mut last_row = 0;
+    for (i, pixel) in framebuffer.buffer.iter_mut().enumerate() {
+        let row = i / SCREEN_WIDTH;
+        if last_row != row {
+            index = (index + 1) % PALETTE.len();
+        }
+        last_row = row;
+        *pixel = PALETTE[index];
+        index = (index + 1) % PALETTE.len();
+    }
+}
+
+fn test_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
+    use rendering::PALETTE;
+    let mut index = state.offset % PALETTE.len();
+    let mut counter = 0;
+    for pixel in framebuffer.buffer.iter_mut() {
+        *pixel = PALETTE[index];
+
+        counter += 1;
+        if counter >= PALETTE.len() {
+            counter = 0;
+            index = (index + 1) % PALETTE.len();
+        }
+    }
+}
+
 #[inline]
 pub fn update_and_render(
     framebuffer: &mut Framebuffer,
-    _state: &mut GameState,
+    state: &mut GameState,
     input: Input,
     _speaker: &mut Speaker,
 ) {
@@ -82,6 +118,19 @@ pub fn update_and_render(
         Button::B => framebuffer.clear_to(BLUE),
         Button::Select => framebuffer.clear_to(WHITE),
         Button::Start => framebuffer.clear_to(RED),
-        _ => framebuffer.clear_to(BLACK),
+        _ => {
+            match input.gamepad {
+                Button::Right => state.offset -= 1,
+                Button::Left => state.offset += 1,
+                Button::Up => state.is_checkerboard = !state.is_checkerboard,
+                Button::Down => state.is_checkerboard = !state.is_checkerboard,
+                _ => {}
+            }
+            if state.is_checkerboard {
+                checkerboard_pattern(framebuffer, state);
+            } else {
+                test_pattern(framebuffer, state);
+            }
+        }
     }
 }
