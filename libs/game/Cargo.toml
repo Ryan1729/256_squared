@@ -16,6 +16,9 @@ path = "../platform_types"
 [dependencies.rendering]
 path = "../rendering"
 
+[dev-dependencies]
+quickcheck = "0.8"
+
 [features]
 default = []
 invariant-checking = ["features/invariant-checking"]

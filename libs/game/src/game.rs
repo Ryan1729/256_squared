@@ -112,20 +112,47 @@ fn test_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
     }
 }
 
+fn xy_to_i((x, y): (i8, i8)) -> usize {
+    let (x_corner, y_corner) = (x.wrapping_sub(-128), y.wrapping_sub(-128));
+
+    ((((1 << 8) - y_corner as i16) as u8 as usize) << 8) | x_corner as u8 as usize
+}
+
+fn i_to_xy(i: usize) -> (i8, i8) {
+    let (x_corner, y_corner) = ((i & 0b1111_1111) as i8, ((1 << 8) - (i >> 8)) as i8);
+
+    (x_corner.wrapping_add(-128), y_corner.wrapping_add(-128))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use quickcheck::quickcheck;
+
+    quickcheck! {
+        fn i_roundtrips(i: usize) -> bool {
+            i == xy_to_i(i_to_xy(i))
+        }
+
+        fn xy_roundtrips(xy: (i8, i8)) -> bool {
+            xy == i_to_xy(xy_to_i(xy))
+        }
+    }
+}
+
 fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
+    framebuffer.clear_to(RED);
+
     for i in 0..(256 * 256) {
-        let (x_corner, y_corner) = ((i & 0b1111_1111) as i8, ((1 << 8) - (i >> 8)) as i8);
+        let (mut x, mut y) = i_to_xy(i);
 
-        let (x, y) = (x_corner.wrapping_add(-128), y_corner.wrapping_add(-128));
+        x |= 0b1111;
+        y |= 0b1111;
 
-        let colour =
-            if (x, y) == (0, 0) || (x, y) == (-1, 1) || (x, y) == (-2, -1) || (x, y) == (2, -2) {
-                BLUE
-            } else {
-                RED
-            };
+        let i = xy_to_i((x, y));
 
-        framebuffer.buffer[i] = colour;
+        framebuffer.buffer[i] = BLUE;
     }
 }
 
