@@ -1,4 +1,8 @@
-I was stuck by the question of, given two bytes interpreted as (x, y) coordinates, what would it look like if you bitwse-OR-ed in `0b1111` into each byte. I couldn't easily do the calculations to visualize in my head so I decided to make a computer do that. Probably I will add a way to select different operations as well.
+I was stuck by the following question:
+
+Given you interpreted two bytes as (x, y) coordinates within a 256 by 256 grid, what would it look like if you iterated over all the possible coordinates and bitwse-OR-ed in `0b1111` into each byte and marked cells in the grid based on the number of coordinates that landed in a particular grid cell.
+
+ I couldn't easily do the calculations to visualize it in my head so I decided to make a computer do that. Probably I will add a way to select different operations as well.
 
 ### Building (using Rust's native WebAssembly backend)
 

@@ -112,6 +112,23 @@ fn test_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
     }
 }
 
+fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
+    for i in 0..(256 * 256) {
+        let (x_corner, y_corner) = ((i & 0b1111_1111) as i8, ((1 << 8) - (i >> 8)) as i8);
+
+        let (x, y) = (x_corner.wrapping_add(-128), y_corner.wrapping_add(-128));
+
+        let colour =
+            if (x, y) == (0, 0) || (x, y) == (-1, 1) || (x, y) == (-2, -1) || (x, y) == (2, -2) {
+                BLUE
+            } else {
+                RED
+            };
+
+        framebuffer.buffer[i] = colour;
+    }
+}
+
 #[inline]
 pub fn update_and_render(
     framebuffer: &mut Framebuffer,
@@ -119,24 +136,33 @@ pub fn update_and_render(
     input: Input,
     _speaker: &mut Speaker,
 ) {
+    if input.gamepad.contains(Button::A) {
+        if input.gamepad.contains(Button::Right) {
+            state.offset -= 1
+        }
+        if input.gamepad.contains(Button::Left) {
+            state.offset += 1
+        }
+        if input.gamepad.contains(Button::Up) {
+            state.is_checkerboard = !state.is_checkerboard
+        }
+        if input.gamepad.contains(Button::Down) {
+            state.is_checkerboard = !state.is_checkerboard
+        }
+        if state.is_checkerboard {
+            checkerboard_pattern(framebuffer, state);
+        } else {
+            test_pattern(framebuffer, state);
+        }
+        return;
+    }
+
     match input.gamepad {
-        Button::A => framebuffer.clear_to(GREEN),
         Button::B => framebuffer.clear_to(BLUE),
         Button::Select => framebuffer.clear_to(WHITE),
         Button::Start => framebuffer.clear_to(RED),
         _ => {
-            match input.gamepad {
-                Button::Right => state.offset -= 1,
-                Button::Left => state.offset += 1,
-                Button::Up => state.is_checkerboard = !state.is_checkerboard,
-                Button::Down => state.is_checkerboard = !state.is_checkerboard,
-                _ => {}
-            }
-            if state.is_checkerboard {
-                checkerboard_pattern(framebuffer, state);
-            } else {
-                test_pattern(framebuffer, state);
-            }
+            apply_fn(framebuffer, state);
         }
     }
 }
