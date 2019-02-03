@@ -147,8 +147,10 @@ fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
     for i in 0..(256 * 256) {
         let (mut x, mut y) = i_to_xy(i);
 
-        x |= 0b1111;
-        y |= 0b1111;
+        let bits = (state.offset as u8 as i8).saturating_sub(1);
+
+        x |= bits;
+        y |= bits;
 
         let i = xy_to_i((x, y));
 
@@ -164,12 +166,6 @@ pub fn update_and_render(
     _speaker: &mut Speaker,
 ) {
     if input.gamepad.contains(Button::A) {
-        if input.gamepad.contains(Button::Right) {
-            state.offset -= 1
-        }
-        if input.gamepad.contains(Button::Left) {
-            state.offset += 1
-        }
         if input.gamepad.contains(Button::Up) {
             state.is_checkerboard = !state.is_checkerboard
         }
@@ -184,8 +180,26 @@ pub fn update_and_render(
         return;
     }
 
+    let (left, right) = if input.gamepad.contains(Button::B) {
+        (
+            input.gamepad.contains(Button::Left),
+            input.gamepad.contains(Button::Right),
+        )
+    } else {
+        (
+            input.pressed_this_frame(Button::Left),
+            input.pressed_this_frame(Button::Right),
+        )
+    };
+
+    if right {
+        state.offset = (state.offset as u8).saturating_add(1) as _;
+    }
+    if left {
+        state.offset = (state.offset as u8).saturating_sub(1) as _;
+    }
+
     match input.gamepad {
-        Button::B => framebuffer.clear_to(BLUE),
         Button::Select => framebuffer.clear_to(WHITE),
         Button::Start => framebuffer.clear_to(RED),
         _ => {
