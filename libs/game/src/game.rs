@@ -1,17 +1,40 @@
 use features::{GLOBAL_ERROR_LOGGER, GLOBAL_LOGGER};
 use platform_types::{Button, Input, Speaker, State, StateParams, SFX};
+use rand::{Rng, SeedableRng};
+use rand_xorshift::XorShiftRng;
 use rendering::{Framebuffer, BLACK, BLUE, GREEN, RED, WHITE};
 
+//a way to represent one of the possible functions fro two i8s to a third one.
+//AKA fn f(a: i8, b: i8) -> i8;
+pub type Func = [[i8; 256]; 256];
+
 pub struct GameState {
-    pub offset: usize,
+    pub x_offset: usize,
+    pub y_offset: usize,
     pub is_checkerboard: bool,
+    pub rng: XorShiftRng,
+    pub func: Func,
+}
+
+fn randomize_func<R: Rng>(rng: &mut R, func: &mut Func) {
+    for row in func.iter_mut() {
+        rng.fill(row);
+    }
 }
 
 impl GameState {
-    pub fn new(_seed: [u8; 16]) -> GameState {
+    pub fn new(seed: [u8; 16]) -> GameState {
+        let mut rng = XorShiftRng::from_seed(seed);
+        let mut func = [[0; 256]; 256];
+
+        randomize_func(&mut rng, &mut func);
+
         GameState {
-            offset: 0,
+            x_offset: 0,
+            y_offset: 0,
             is_checkerboard: false,
+            rng,
+            func,
         }
     }
 }
@@ -78,7 +101,7 @@ impl State for EntireState {
 
 fn checkerboard_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
     use rendering::{PALETTE, SCREEN_WIDTH};
-    let mut index = state.offset % PALETTE.len();
+    let mut index = state.x_offset % PALETTE.len();
     let mut last_row = 0;
     let mut counter = 0;
     for (i, pixel) in framebuffer.buffer.iter_mut().enumerate() {
@@ -99,7 +122,7 @@ fn checkerboard_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
 
 fn test_pattern(framebuffer: &mut Framebuffer, state: &mut GameState) {
     use rendering::PALETTE;
-    let mut index = state.offset % PALETTE.len();
+    let mut index = state.x_offset % PALETTE.len();
     let mut counter = 0;
     for pixel in framebuffer.buffer.iter_mut() {
         *pixel = PALETTE[index];
@@ -144,13 +167,13 @@ mod test {
 fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
     framebuffer.clear_to(RED);
 
+    let func = &state.func;
+
     for i in 0..(256 * 256) {
         let (mut x, mut y) = i_to_xy(i);
 
-        let bits = (state.offset as u8 as i8).saturating_sub(1);
-
-        x |= bits;
-        y |= bits;
+        x = func[state.x_offset][x as u8 as usize];
+        y = func[state.y_offset][y as u8 as usize];
 
         let i = xy_to_i((x, y));
 
@@ -180,28 +203,41 @@ pub fn update_and_render(
         return;
     }
 
-    let (left, right) = if input.gamepad.contains(Button::B) {
+    let (left, right, up, down) = if input.gamepad.contains(Button::B) {
         (
             input.gamepad.contains(Button::Left),
             input.gamepad.contains(Button::Right),
+            input.gamepad.contains(Button::Up),
+            input.gamepad.contains(Button::Down),
         )
     } else {
         (
             input.pressed_this_frame(Button::Left),
             input.pressed_this_frame(Button::Right),
+            input.pressed_this_frame(Button::Up),
+            input.pressed_this_frame(Button::Down),
         )
     };
 
     if right {
-        state.offset = (state.offset as u8).saturating_add(1) as _;
+        state.x_offset = (state.x_offset as u8).saturating_add(1) as _;
     }
     if left {
-        state.offset = (state.offset as u8).saturating_sub(1) as _;
+        state.x_offset = (state.x_offset as u8).saturating_sub(1) as _;
+    }
+    if up {
+        state.y_offset = (state.y_offset as u8).saturating_add(1) as _;
+    }
+    if down {
+        state.y_offset = (state.y_offset as u8).saturating_sub(1) as _;
     }
 
     match input.gamepad {
         Button::Select => framebuffer.clear_to(WHITE),
-        Button::Start => framebuffer.clear_to(RED),
+        Button::Start => {
+            randomize_func(&mut state.rng, &mut state.func);
+            framebuffer.clear_to(GREEN)
+        }
         _ => {
             apply_fn(framebuffer, state);
         }
