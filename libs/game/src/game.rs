@@ -2,11 +2,27 @@ use features::{GLOBAL_ERROR_LOGGER, GLOBAL_LOGGER};
 use platform_types::{Button, Input, Speaker, State, StateParams, SFX};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use rendering::{Framebuffer, BLACK, BLUE, GREEN, RED, WHITE};
+use rendering::{Framebuffer, BLACK, BLUE, GREEN, PURPLE, RED, WHITE};
 
-//a way to represent one of the possible functions fro two i8s to a third one.
+pub enum Mode {
+    ViewFunc2,
+    VisualizeFunc,
+    TestPattern,
+}
+
+impl Default for Mode {
+    fn default() -> Mode {
+        Mode::ViewFunc2
+    }
+}
+
+//a way to represent one of the possible functions from an i8 to another i8.
+//AKA fn f(a: i8) -> i8;
+pub type Func = [i8; 256];
+
+//a way to represent one of the possible functions from two i8s to a third one.
 //AKA fn f(a: i8, b: i8) -> i8;
-pub type Func = [[i8; 256]; 256];
+pub type Func2 = [[i8; 256]; 256];
 
 pub struct GameState {
     pub x_offset: usize,
@@ -14,9 +30,15 @@ pub struct GameState {
     pub is_checkerboard: bool,
     pub rng: XorShiftRng,
     pub func: Func,
+    pub func2: Func2,
+    pub mode: Mode,
 }
 
 fn randomize_func<R: Rng>(rng: &mut R, func: &mut Func) {
+    rng.fill(func);
+}
+
+fn randomize_func2<R: Rng>(rng: &mut R, func: &mut Func2) {
     for row in func.iter_mut() {
         rng.fill(row);
     }
@@ -25,9 +47,12 @@ fn randomize_func<R: Rng>(rng: &mut R, func: &mut Func) {
 impl GameState {
     pub fn new(seed: [u8; 16]) -> GameState {
         let mut rng = XorShiftRng::from_seed(seed);
-        let mut func = [[0; 256]; 256];
 
+        let mut func = [0; 256];
         randomize_func(&mut rng, &mut func);
+
+        let mut func2 = [[0; 256]; 256];
+        randomize_func2(&mut rng, &mut func2);
 
         GameState {
             x_offset: 0,
@@ -35,6 +60,8 @@ impl GameState {
             is_checkerboard: false,
             rng,
             func,
+            func2,
+            mode: Default::default(),
         }
     }
 }
@@ -164,10 +191,28 @@ mod test {
     }
 }
 
-fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
+fn update_and_render_test_pattern(
+    framebuffer: &mut Framebuffer,
+    state: &mut GameState,
+    input: Input,
+) {
+    if input.gamepad.contains(Button::Up) || input.gamepad.contains(Button::Right) {
+        state.is_checkerboard = !state.is_checkerboard
+    }
+    if input.gamepad.contains(Button::Down) || input.gamepad.contains(Button::Left) {
+        state.is_checkerboard = !state.is_checkerboard
+    }
+    if state.is_checkerboard {
+        checkerboard_pattern(framebuffer, state);
+    } else {
+        test_pattern(framebuffer, state);
+    }
+}
+
+fn apply_func2(framebuffer: &mut Framebuffer, state: &mut GameState) {
     framebuffer.clear_to(RED);
 
-    let func = &state.func;
+    let func = &state.func2;
 
     for i in 0..(256 * 256) {
         let (mut x, mut y) = i_to_xy(i);
@@ -181,28 +226,11 @@ fn apply_fn(framebuffer: &mut Framebuffer, state: &mut GameState) {
     }
 }
 
-#[inline]
-pub fn update_and_render(
+fn update_and_render_view_func2(
     framebuffer: &mut Framebuffer,
     state: &mut GameState,
     input: Input,
-    _speaker: &mut Speaker,
 ) {
-    if input.gamepad.contains(Button::A) {
-        if input.gamepad.contains(Button::Up) {
-            state.is_checkerboard = !state.is_checkerboard
-        }
-        if input.gamepad.contains(Button::Down) {
-            state.is_checkerboard = !state.is_checkerboard
-        }
-        if state.is_checkerboard {
-            checkerboard_pattern(framebuffer, state);
-        } else {
-            test_pattern(framebuffer, state);
-        }
-        return;
-    }
-
     let (left, right, up, down) = if input.gamepad.contains(Button::B) {
         (
             input.gamepad.contains(Button::Left),
@@ -235,11 +263,70 @@ pub fn update_and_render(
     match input.gamepad {
         Button::Select => framebuffer.clear_to(WHITE),
         Button::Start => {
+            randomize_func2(&mut state.rng, &mut state.func2);
+            framebuffer.clear_to(GREEN)
+        }
+        _ => {
+            apply_func2(framebuffer, state);
+        }
+    }
+}
+
+fn apply_func(framebuffer: &mut Framebuffer, state: &mut GameState) {
+    framebuffer.clear_to(RED);
+
+    let func = &state.func;
+
+    for x in (-128)..=127 {
+        let y = func[x as u8 as usize];
+
+        let i = xy_to_i((x, y));
+
+        framebuffer.buffer[i] = BLUE;
+    }
+}
+
+fn update_and_render_visualize_func(
+    framebuffer: &mut Framebuffer,
+    state: &mut GameState,
+    input: Input,
+) {
+    match input.gamepad {
+        Button::Select => framebuffer.clear_to(WHITE),
+        Button::Start => {
             randomize_func(&mut state.rng, &mut state.func);
             framebuffer.clear_to(GREEN)
         }
         _ => {
-            apply_fn(framebuffer, state);
+            apply_func(framebuffer, state);
         }
     }
+}
+
+#[inline]
+pub fn update_and_render(
+    framebuffer: &mut Framebuffer,
+    state: &mut GameState,
+    input: Input,
+    _speaker: &mut Speaker,
+) {
+    if input.pressed_this_frame(Button::A) {
+        state.mode = match state.mode {
+            Mode::ViewFunc2 => Mode::VisualizeFunc,
+            Mode::VisualizeFunc => Mode::TestPattern,
+            Mode::TestPattern => Mode::ViewFunc2,
+        };
+    }
+
+    return match state.mode {
+        Mode::ViewFunc2 => {
+            update_and_render_view_func2(framebuffer, state, input);
+        }
+        Mode::VisualizeFunc => {
+            update_and_render_visualize_func(framebuffer, state, input);
+        }
+        Mode::TestPattern => {
+            update_and_render_test_pattern(framebuffer, state, input);
+        }
+    };
 }
