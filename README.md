@@ -4,6 +4,8 @@ Given you interpreted two bytes as (x, y) coordinates within a 256 by 256 grid, 
 
  I couldn't easily do the calculations to visualize it in my head so I decided to make a computer do that. Probably I will add a way to select different operations as well.
 
+[live version](https://ryan1729.github.io/256_squared/)
+
 ### Building (using Rust's native WebAssembly backend)
 
 1. Install newest nightly Rust:
